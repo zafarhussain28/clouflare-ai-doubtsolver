@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>📘 AI STEM Solver (Cloudflare)</title>
+
+  <!-- KaTeX -->
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script defer
+          src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <script defer
+          src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+
+  <style>
+    body {
+      background: #eef3ff;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    .box {
+      max-width: 750px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 14px;
+      box-shadow: 0 0 25px rgba(0,0,0,0.12);
+    }
+    h2 {
+      text-align: center;
+    }
+    button {
+      margin-top: 15px;
+      padding: 12px;
+      width: 100%;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #loader {
+      margin-top: 10px;
+      font-weight: bold;
+      display: none;
+    }
+    #ocr-debug, #output {
+      margin-top: 20px;
+      padding: 15px;
+      white-space: pre-wrap;
+      background: #f0f4ff;
+      border-radius: 10px;
+      font-size: 15px;
+    }
+    #ocr-debug {
+      font-size: 14px;
+      color: #444;
+    }
+  </style>
+</head>
+<body>
+
+<div class="box">
+  <h2>📘 AI STEM Solver</h2>
+
+  <input type="file" id="img" accept="image/*">
+
+  <button id="btn">Solve Question</button>
+
+  <div id="loader">⏳ Processing image…</div>
+
+  <div id="ocr-debug"></div>
+  <div id="output"></div>
+</div>
+
+<script>
+/* ----------------------------------------
+   1. Convert Image → dataURL
+---------------------------------------- */
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ----------------------------------------
+   2. Call Cloudflare Worker
+---------------------------------------- */
+async function solveWithCloudflare(imageDataUrl) {
+  const res = await fetch(
+    "https://calm-wind-7e93.mrzafar137.workers.dev/",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageDataUrl })
+    }
+  );
+
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error("Worker error " + res.status + ": " + text);
+  }
+  return JSON.parse(text);
+}
+
+/* ----------------------------------------
+   3. Button Click Handler
+---------------------------------------- */
+document.getElementById("btn").onclick = async () => {
+  const file = document.getElementById("img").files[0];
+  if (!file) {
+    alert("Please select an image");
+    return;
+  }
+
+  const loader = document.getElementById("loader");
+  const ocrBox = document.getElementById("ocr-debug");
+  const out = document.getElementById("output");
+
+  loader.style.display = "block";
+  ocrBox.textContent = "";
+  out.textContent = "";
+
+  try {
+    const dataUrl = await fileToDataUrl(file);
+
+    const result = await solveWithCloudflare(dataUrl);
+
+    ocrBox.textContent =
+      "🧾 OCR OUTPUT:\n\n" + result.clean_question;
+
+    out.textContent =
+      "✅ SOLUTION:\n\n" + result.solution;
+
+    // Render LaTeX
+    setTimeout(() => {
+      renderMathInElement(out, {
+        delimiters: [
+          { left: "$$", right: "$$", display: true },
+          { left: "$", right: "$", display: false }
+        ]
+      });
+    }, 50);
+
+  } catch (err) {
+    out.textContent = "ERROR:\n" + err.message;
+  }
+
+  loader.style.display = "none";
+};
+</script>
+
+</body>
+</html>
